@@ -9,3 +9,12 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
+**/node_modules/**
+**/media/react-app/**       # If you keep the React source separately
+**/src/**
+**/tsconfig.json
+**/package-lock.json
+**/.env
+**/.gitignore
+**/README.md
+**/build/

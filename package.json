@@ -44,5 +44,10 @@
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0"
+  },
+  "repository": {
+  "type": "git",
+  "url": "https://github.com/Ritesh0219/ai-chat-vscode-extension.git"
   }
+
 }
