@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "module": "Node16",
+    "target": "ES2022",
+    "outDir": "out",
+    "lib": ["ES2022"],
+    "sourceMap": true,
+    "rootDir": "src",
+    "strict": true
+  },
+  "exclude": [
+    "media",         // ✅ Don't compile React code
+    "node_modules"   // ✅ Standard exclude
+  ]
+}
