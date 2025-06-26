@@ -1,5 +1,5 @@
 /* global acquireVsCodeApi */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 
 declare function acquireVsCodeApi(): any;
@@ -16,15 +16,21 @@ function App() {
   const [waitingForFile, setWaitingForFile] = useState(false);
   const [pendingFilename, setPendingFilename] = useState('');
   const [originalInput, setOriginalInput] = useState('');
+  const [fileList, setFileList] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [cursorPos, setCursorPos] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    vscode.postMessage({ type: 'requestFileList' });
+
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
 
       if (message.type === 'fileContent') {
         const content = message.content;
         const finalPrompt = originalInput.replace(`@${pendingFilename}`, `\n${content}\n`);
-
         sendToGemini(finalPrompt);
         setWaitingForFile(false);
       }
@@ -34,10 +40,14 @@ function App() {
           ...prev,
           {
             role: 'assistant',
-            content: ` File "${pendingFilename}" not found in your workspace.`,
+            content: `File "${pendingFilename}" not found in your workspace.`,
           },
         ]);
         setWaitingForFile(false);
+      }
+
+      if (message.type === 'fileList') {
+        setFileList(message.files || []);
       }
     };
 
@@ -63,6 +73,8 @@ function App() {
     }
 
     setInput('');
+    setSuggestions([]);
+    setShowSuggestions(false);
   };
 
   const sendToGemini = async (prompt: string) => {
@@ -84,6 +96,40 @@ function App() {
     }
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const cursor = e.target.selectionStart ?? value.length;
+    setInput(value);
+    setCursorPos(cursor);
+
+    const lastAt = value.lastIndexOf('@', cursor - 1);
+    if (lastAt !== -1) {
+      const typed = value.slice(lastAt + 1, cursor);
+      const filtered = fileList.filter((file) => file.includes(typed));
+      if (filtered.length) {
+        setSuggestions(filtered);
+        setShowSuggestions(true);
+        return;
+      }
+    }
+
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
+
+  const selectSuggestion = (filename: string) => {
+    if (!inputRef.current) return;
+    const start = input.slice(0, cursorPos);
+    const end = input.slice(cursorPos);
+    const match = start.lastIndexOf('@');
+    const newInput = start.slice(0, match + 1) + filename + ' ' + end;
+
+    setInput(newInput);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    inputRef.current.focus();
+  };
+
   return (
     <div className="app">
       <div className="chat-window">
@@ -91,15 +137,15 @@ function App() {
           <div key={idx} className={`message ${msg.role}`}>
             <b>{msg.role === 'user' ? 'You' : 'Gemini'}:</b> {msg.content}
           </div>
-          
         ))}
       </div>
 
       <div className="input-box">
         <input
           type="text"
+          ref={inputRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={handleInputChange}
           placeholder="Ask Gemini... (@filename)"
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           disabled={waitingForFile}
@@ -107,6 +153,15 @@ function App() {
         <button onClick={handleSend} disabled={waitingForFile}>
           Send
         </button>
+        {showSuggestions && (
+          <ul className="suggestions">
+            {suggestions.map((file, i) => (
+              <li key={i} onClick={() => selectSuggestion(file)}>
+                {file}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

@@ -45,7 +45,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     panel.webview.html = html;
 
-    // Handle file content request from WebView
+    // Handle messages from WebView
     panel.webview.onDidReceiveMessage(
       async (msg) => {
         if (msg.type === 'readFile' && msg.filename) {
@@ -65,6 +65,18 @@ export function activate(context: vscode.ExtensionContext) {
             panel.webview.postMessage({ type: 'fileNotFound' });
           }
         }
+
+        // Handle request to send list of all workspace files
+        if (msg.type === 'requestFileList') {
+          const workspaceFolders = vscode.workspace.workspaceFolders;
+          if (workspaceFolders) {
+            const rootPath = workspaceFolders[0].uri.fsPath;
+            const files = getAllFilesRecursively(rootPath).map(file =>
+              path.relative(rootPath, file).replace(/\\/g, '/')
+            );
+            panel.webview.postMessage({ type: 'fileList', files });
+          }
+        }
       },
       undefined,
       context.subscriptions
@@ -72,4 +84,23 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   context.subscriptions.push(panelCommand);
+}
+
+// Recursively gather all file paths in the workspace
+function getAllFilesRecursively(dir: string): string[] {
+  let results: string[] = [];
+
+  const list = fs.readdirSync(dir);
+  for (const file of list) {
+    const filePath = path.join(dir, file);
+    const stat = fs.statSync(filePath);
+
+    if (stat && stat.isDirectory()) {
+      results = results.concat(getAllFilesRecursively(filePath));
+    } else {
+      results.push(filePath);
+    }
+  }
+
+  return results;
 }
